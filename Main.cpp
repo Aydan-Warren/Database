@@ -2,30 +2,30 @@
 #include <fstream>
 #include <vector>
 #include <string>
-#include <sstream>
 #include <algorithm>
-
-// Struct for key-value pair
+#include <sstream>
 struct KeyValue {
     std::string key;
     std::string value;
 };
 
-// Simple in-memory index
 class KeyValueStore {
+private:
+    std::vector<KeyValue> data;
+
 public:
     void set(const std::string& key, const std::string& value) {
-        for (auto& kv : index) {
+        for (auto& kv : data) {
             if (kv.key == key) {
-                kv.value = value;
+                kv.value = value; // last write wins
                 return;
             }
         }
-        index.push_back({key, value});
+        data.push_back({key, value});
     }
 
     bool get(const std::string& key, std::string& value) {
-        for (const auto& kv : index) {
+        for (auto& kv : data) {
             if (kv.key == key) {
                 value = kv.value;
                 return true;
@@ -33,78 +33,86 @@ public:
         }
         return false;
     }
-
-private:
-    std::vector<KeyValue> index;
 };
 
-// Convert string to uppercase
-std::string to_upper(const std::string& s) {
-    std::string result = s;
-    std::transform(result.begin(), result.end(), result.begin(), ::toupper);
-    return result;
+std::string upper(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), ::toupper);
+    return s;
 }
 
-// Replay log file to rebuild state
-void replayLog(KeyValueStore& store, const std::string& filename) {
-    std::ifstream file(filename);
-
-    // If the file doesn't exist yet, just return
-    if (!file.is_open()) {
+/*
+Replay the append-only log to rebuild the in-memory index
+*/
+void replayLog(KeyValueStore& store, const std::string& file)
+{
+    std::ifstream in(file);
+    if (!in.is_open())
         return;
-    }
 
     std::string line;
-    while (std::getline(file, line)) {
+
+    while (std::getline(in, line))
+    {
+        if (line.empty())
+            continue;
+
         std::istringstream iss(line);
+
         std::string cmd, key, value;
 
-        iss >> cmd;
-        cmd = to_upper(cmd);
+        iss >> cmd >> key >> value;
 
-        if (cmd == "SET") {
-            iss >> key >> value;
+        if (upper(cmd) == "SET")
             store.set(key, value);
-        }
     }
 }
 
 int main() {
+
+    const std::string DB = "data.db";
+
     KeyValueStore store;
-    const std::string dbFile = "data.db";
 
-    // Load previous state
-    replayLog(store, dbFile);
+    // rebuild index from disk
+    replayLog(store, DB);
 
-    // Open database log file
-    std::ofstream db(dbFile, std::ios::app);
+    std::ofstream log(DB, std::ios::app);
 
-    std::string input;
+    std::string cmd;
 
-    while (std::getline(std::cin, input)) {
-        std::istringstream iss(input);
+    while (true) {
 
-        std::string cmd, key, value;
-        iss >> cmd;
+        if (!(std::cin >> cmd))
+            break;
 
-        cmd = to_upper(cmd);
+        cmd = upper(cmd);
 
         if (cmd == "SET") {
-            iss >> key >> value;
+
+            std::string key, value;
+
+            if (!(std::cin >> key >> value))
+                break;
 
             store.set(key, value);
 
-            db << "SET " << key << " " << value << std::endl;
-            db.flush();
+            log << "SET " << key << " " << value << std::endl;
+            log.flush();
         }
 
         else if (cmd == "GET") {
-            iss >> key;
 
-            if (store.get(key, value)) {
+            std::string key, value;
+
+            if (!(std::cin >> key))
+                break;
+
+            if (store.get(key, value))
                 std::cout << value << std::endl;
-            }
-            // IMPORTANT: print nothing if key doesn't exist
+            else
+                std::cout << std::endl;
+
+            std::cout.flush();
         }
 
         else if (cmd == "EXIT") {
