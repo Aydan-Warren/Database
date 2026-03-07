@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <algorithm>
 
 // Struct for key-value pair
 struct KeyValue {
@@ -13,7 +14,6 @@ struct KeyValue {
 // Simple in-memory index (array)
 class KeyValueStore {
 public:
-    // Add or update key-value pair
     void set(const std::string& key, const std::string& value) {
         for (auto& kv : index) {
             if (kv.key == key) {
@@ -24,7 +24,6 @@ public:
         index.push_back({key, value});
     }
 
-    // Get value for key, return true if found
     bool get(const std::string& key, std::string& value) {
         for (const auto& kv : index) {
             if (kv.key == key) {
@@ -39,6 +38,13 @@ private:
     std::vector<KeyValue> index;
 };
 
+// Convert string to uppercase
+std::string to_upper(const std::string& s) {
+    std::string result = s;
+    std::transform(result.begin(), result.end(), result.begin(), ::toupper);
+    return result;
+}
+
 void replayLog(KeyValueStore& store, const std::string& filename) {
     std::ifstream file(filename);
     std::string line;
@@ -46,6 +52,7 @@ void replayLog(KeyValueStore& store, const std::string& filename) {
         std::istringstream iss(line);
         std::string cmd, key, value;
         iss >> cmd;
+        cmd = to_upper(cmd);
         if (cmd == "SET") {
             iss >> key;
             iss >> value;
@@ -58,10 +65,8 @@ int main() {
     KeyValueStore store;
     const std::string dbFile = "data.db";
 
-    // Replay log to rebuild index
     replayLog(store, dbFile);
 
-    // Open file for appending
     std::ofstream db(dbFile, std::ios::app);
 
     std::string input;
@@ -69,6 +74,7 @@ int main() {
         std::istringstream iss(input);
         std::string cmd, key, value;
         iss >> cmd;
+        cmd = to_upper(cmd);
         if (cmd == "SET") {
             iss >> key;
             iss >> value;
