@@ -1,0 +1,4 @@
+SET foo bar
+SET hello world
+SET key value
+SET foo baz
