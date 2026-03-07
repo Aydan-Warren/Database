@@ -11,7 +11,7 @@ struct KeyValue {
     std::string value;
 };
 
-// Simple in-memory index (array)
+// Simple in-memory index
 class KeyValueStore {
 public:
     void set(const std::string& key, const std::string& value) {
@@ -45,17 +45,25 @@ std::string to_upper(const std::string& s) {
     return result;
 }
 
+// Replay log file to rebuild state
 void replayLog(KeyValueStore& store, const std::string& filename) {
     std::ifstream file(filename);
+
+    // If the file doesn't exist yet, just return
+    if (!file.is_open()) {
+        return;
+    }
+
     std::string line;
     while (std::getline(file, line)) {
         std::istringstream iss(line);
         std::string cmd, key, value;
+
         iss >> cmd;
         cmd = to_upper(cmd);
+
         if (cmd == "SET") {
-            iss >> key;
-            iss >> value;
+            iss >> key >> value;
             store.set(key, value);
         }
     }
@@ -65,32 +73,44 @@ int main() {
     KeyValueStore store;
     const std::string dbFile = "data.db";
 
+    // Load previous state
     replayLog(store, dbFile);
 
+    // Open database log file
     std::ofstream db(dbFile, std::ios::app);
 
     std::string input;
+
     while (std::getline(std::cin, input)) {
         std::istringstream iss(input);
+
         std::string cmd, key, value;
         iss >> cmd;
+
         cmd = to_upper(cmd);
+
         if (cmd == "SET") {
-            iss >> key;
-            iss >> value;
+            iss >> key >> value;
+
             store.set(key, value);
+
             db << "SET " << key << " " << value << std::endl;
             db.flush();
-        } else if (cmd == "GET") {
+        }
+
+        else if (cmd == "GET") {
             iss >> key;
+
             if (store.get(key, value)) {
                 std::cout << value << std::endl;
-            } else {
-                std::cout << "NULL" << std::endl;
             }
-        } else if (cmd == "EXIT") {
+            // IMPORTANT: print nothing if key doesn't exist
+        }
+
+        else if (cmd == "EXIT") {
             break;
         }
     }
+
     return 0;
 }
